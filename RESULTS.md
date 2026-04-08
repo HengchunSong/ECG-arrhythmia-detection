@@ -29,7 +29,7 @@ The most important new result is this:
 - adding local rhythm context helped
 - changing the DS1 validation fold construction helped even more
 - adding RR-aware inputs helped again, especially on recall and cross-fold robustness
-- adding causal history as an extra personalization signal is promising, but not a clean across-the-board win yet
+- adding causal history as an extra personalization signal still helps on the full 15-run mean, but the gain is smaller than the first seed-42-only scan suggested and the latency cost is large
 
 The project now looks much more viable than it did before.
 
@@ -223,15 +223,47 @@ Fold-by-fold F1:
 
 So the RR-aware branch improved F1 on every fold in this seed 42 scan, and lifted recall above `0.94` on 4 of 5 folds.
 
+To make the generic result more paper-ready, `rr-context` was then run across all 5 folds with 3 seeds:
+
+```powershell
+python sweep.py --models rr-context --seeds 42 43 44 --folds 0 1 2 3 4 -- --split-policy de-chazal-interpatient --de-chazal-val-mode beat-balanced-fold --de-chazal-num-folds 5 --split-seed 42 --epochs 3 --batch-size 256 --sampler weighted --class-weight none --context-radius 1 --no-export
+```
+
+Saved summary:
+
+- `artifacts/sweeps/20260407_144513_434424_summary.md`
+
+Cross-fold 15-run aggregate:
+
+- `rr-context`
+  - Precision mean: `0.7995`
+  - Recall mean: `0.9500`
+  - F1 mean: `0.8629`
+  - Latency mean: `12.7047 ms/window`
+
+Fold-by-fold F1 mean:
+
+- fold 0: `0.9088`
+- fold 1: `0.7823`
+- fold 2: `0.8273`
+- fold 3: `0.8720`
+- fold 4: `0.9240`
+
+This full multi-seed view is more honest than the earlier seed 42 scan:
+
+- `rr-context` is still stronger than `context` on the strict generic mean
+- but the gain is not as clean as the seed 42 scan first suggested
+- fold 1 to fold 3 still show meaningful seed-to-seed precision instability
+
 ## Best strict run so far
 
 Best observed strict run so far:
 
-- `rr-context`, beat-balanced fold 0, seed 42:
-  - Precision: `0.9381`
-  - Recall: `0.9453`
-  - F1: `0.9417`
-  - Artifact: `artifacts/20260406_035459_950688_rr-context/`
+- `rr-context`, beat-balanced fold 4, seed 43:
+  - Precision: `0.9166`
+  - Recall: `0.9689`
+  - F1: `0.9420`
+  - Artifact: `artifacts/20260407_144229_510756_rr-context/`
 
 Compared with the poster target:
 
@@ -360,19 +392,53 @@ This does suggest a real tradeoff, but the gain now looks more real than before:
 - the gain is stable across 3 seeds, not just one run
 - but it more than doubles CPU latency in the current implementation
 
-The cross-fold seed 42 scan strengthens that conclusion:
+The cross-fold seed 42 scan strengthened that conclusion:
 
 - the gain is not restricted to fold 0
 - in this first cross-fold check, `personalized-rr-context` improved F1 on all 5 folds
 - fold 1 in particular improved dramatically, mostly by fixing the precision collapse seen in generic `rr-context`
 
-So this is now a stronger candidate than it first looked, but it is still not an automatic replacement for `rr-context` because the cross-fold personalized result still needs multi-seed confirmation.
+To make that result more paper-ready, the same personalized setting was then run across all 5 folds with 3 seeds:
+
+```powershell
+python sweep.py --models personalized-rr-context --seeds 42 43 44 --folds 0 1 2 3 4 -- --split-policy de-chazal-interpatient --de-chazal-val-mode beat-balanced-fold --de-chazal-num-folds 5 --split-seed 42 --epochs 3 --batch-size 256 --sampler weighted --class-weight none --context-radius 1 --history-beats 8 --no-export
+```
+
+Saved summary:
+
+- `artifacts/sweeps/20260407_195507_536570_summary.md`
+
+Cross-fold 15-run aggregate:
+
+- `rr-context`
+  - Precision mean: `0.7995`
+  - Recall mean: `0.9500`
+  - F1 mean: `0.8629`
+  - Latency mean: `12.7047 ms/window`
+  - Summary: `artifacts/sweeps/20260407_144513_434424_summary.md`
+- `personalized-rr-context`, `history-beats=8`
+  - Precision mean: `0.8177`
+  - Recall mean: `0.9676`
+  - F1 mean: `0.8817`
+  - Latency mean: `25.3438 ms/window`
+  - Summary: `artifacts/sweeps/20260407_195507_536570_summary.md`
+
+Fold-by-fold F1 mean in the full 15-run view:
+
+- fold 0: `0.9088 -> 0.9399`
+- fold 1: `0.7823 -> 0.8115`
+- fold 2: `0.8273 -> 0.8665`
+- fold 3: `0.8720 -> 0.8968`
+- fold 4: `0.9240 -> 0.8937`
+
+So this is still a stronger candidate than it first looked, but it is not an automatic replacement for `rr-context`.
 
 It is more accurate to say:
 
 - `rr-context` is still the lighter edge baseline
 - personalized history is now a credible second setting for patient adaptation
-- the next question is whether the cross-fold advantage survives multiple seeds
+- the full 15-run mean still improves over generic `rr-context`, but the advantage shrinks once multiple seeds are included
+- fold 4 regresses and several fold/seed combinations still show precision collapse
 
 ## What we can now claim
 
@@ -383,8 +449,9 @@ The most defensible statement is:
 - yes, the project can reach poster-level F1 under a strict inter-patient setup
 - yes, fold construction matters a lot for whether that conclusion looks stable
 - yes, per-record history can help precision/recall/F1, but it changes the evaluation setting and increases latency
-- yes, a first cross-fold personalized scan suggests that the gain is not limited to fold 0
-- no, the full multi-seed cross-fold picture is still missing, so the paper-ready average is not settled yet
+- yes, the full 5-fold x 3-seed picture is now available for both `rr-context` and `personalized-rr-context`
+- yes, personalized history still improves the overall 15-run mean, but not on every fold and not by as much as the seed-42-only scan first suggested
+- no, the personalized branch is not yet a drop-in replacement for the lighter generic edge model
 
 ## Things that helped
 
@@ -408,9 +475,10 @@ The most defensible statement is:
 
 If we keep going, the next highest-value steps are:
 
-- run the full 5-fold multi-seed sweep for `rr-context`
-- run a multi-seed cross-fold sweep for `personalized-rr-context`
 - replace "best single epoch" selection with a more stable validation policy across folds
+- add clean ablations for the personalized branch: RR baseline only, morphology prototype only, and different `history-beats`
+- run a stricter causal / cold-start evaluation so the personalization story matches real online deployment
 - sweep smaller RR-aware rhythm encoders so the gain stays edge-friendly
 - tighten reproducibility, because some same-setting reruns still move more than we would want for a paper
+- retest representative reference baselines under the same strict split instead of comparing against random-split numbers
 - only after that, revisit quantization or TurboQuant

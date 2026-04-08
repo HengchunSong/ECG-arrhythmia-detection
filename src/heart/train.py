@@ -50,12 +50,15 @@ class TrainConfig:
     de_chazal_val_fold: int
     context_radius: int
     history_beats: int
+    personalized_use_rr_baseline: bool
+    personalized_use_history_prototype: bool
     force_rebuild: bool
     records_limit: int | None
     max_beats_per_record: int | None
     sampler: str
     class_weight: str
     export: bool
+    run_tag: str | None
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -88,6 +91,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--de-chazal-val-fold", type=int, default=0)
     parser.add_argument("--context-radius", type=int, default=2)
     parser.add_argument("--history-beats", type=int, default=8)
+    parser.add_argument("--disable-personal-rr-baseline", action="store_true")
+    parser.add_argument("--disable-history-prototype", action="store_true")
+    parser.add_argument("--run-tag", type=str)
     parser.add_argument("--force-rebuild", action="store_true")
     parser.add_argument("--records-limit", type=int)
     parser.add_argument("--max-beats-per-record", type=int)
@@ -116,6 +122,16 @@ def resolve_history_beats(model_name: str, requested_history_beats: int) -> int:
             raise ValueError("personalized-rr-context requires --history-beats >= 1.")
         return requested_history_beats
     return 0
+
+
+def resolve_personalization_flags(
+    model_name: str,
+    disable_personal_rr_baseline: bool,
+    disable_history_prototype: bool,
+) -> tuple[bool, bool]:
+    if model_name.lower() != "personalized-rr-context":
+        return False, False
+    return (not disable_personal_rr_baseline), (not disable_history_prototype)
 
 
 def seed_everything(seed: int) -> None:
@@ -480,9 +496,19 @@ def export_artifacts(model: nn.Module, output_dir: Path, example_input: object) 
         )
 
 
-def make_output_dir(model_name: str) -> Path:
+def sanitize_run_tag(run_tag: str | None) -> str | None:
+    if run_tag is None:
+        return None
+    safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in run_tag.strip().lower())
+    safe = safe.strip("-_")
+    return safe or None
+
+
+def make_output_dir(model_name: str, run_tag: str | None = None) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    path = Path("artifacts") / f"{stamp}_{model_name}"
+    safe_tag = sanitize_run_tag(run_tag)
+    suffix = f"_{safe_tag}" if safe_tag else ""
+    path = Path("artifacts") / f"{stamp}_{model_name}{suffix}"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -493,6 +519,14 @@ def run_experiment(args: argparse.Namespace) -> tuple[Path, dict[str, object]]:
 
     if args.split_policy == "de-chazal-interpatient" and args.records_limit:
         raise ValueError("records_limit is not supported with de-chazal-interpatient split.")
+
+    context_radius = resolve_context_radius(args.model, args.context_radius)
+    history_beats = resolve_history_beats(args.model, args.history_beats)
+    use_personal_rr, use_history_prototype = resolve_personalization_flags(
+        args.model,
+        disable_personal_rr_baseline=args.disable_personal_rr_baseline,
+        disable_history_prototype=args.disable_history_prototype,
+    )
 
     config = TrainConfig(
         data_root=str(args.data_root),
@@ -515,12 +549,15 @@ def run_experiment(args: argparse.Namespace) -> tuple[Path, dict[str, object]]:
         de_chazal_val_fold=args.de_chazal_val_fold,
         context_radius=args.context_radius,
         history_beats=args.history_beats,
+        personalized_use_rr_baseline=use_personal_rr,
+        personalized_use_history_prototype=use_history_prototype,
         force_rebuild=args.force_rebuild,
         records_limit=args.records_limit,
         max_beats_per_record=args.max_beats_per_record,
         sampler=args.sampler,
         class_weight=args.class_weight,
         export=args.export,
+        run_tag=args.run_tag,
     )
 
     x, y, record_ids, rr, x_rr = build_dataset(
@@ -545,8 +582,6 @@ def run_experiment(args: argparse.Namespace) -> tuple[Path, dict[str, object]]:
     train_split = select_split(x, y, record_ids, splits["train"], rr=rr, x_rr=x_rr)
     val_split = select_split(x, y, record_ids, splits["val"], rr=rr, x_rr=x_rr)
     test_split = select_split(x, y, record_ids, splits["test"], rr=rr, x_rr=x_rr)
-    context_radius = resolve_context_radius(args.model, args.context_radius)
-    history_beats = resolve_history_beats(args.model, args.history_beats)
 
     print(split_summary("train", train_split))
     print(split_summary("val", val_split))
@@ -571,6 +606,8 @@ def run_experiment(args: argparse.Namespace) -> tuple[Path, dict[str, object]]:
         context_beats=context_radius * 2 + 1,
         rr_feature_dim=0 if train_split.rr is None else int(train_split.rr.shape[1]),
         history_beats=history_beats,
+        use_personal_rr=use_personal_rr,
+        use_history_prototype=use_history_prototype,
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -588,7 +625,7 @@ def run_experiment(args: argparse.Namespace) -> tuple[Path, dict[str, object]]:
         patience=3,
     )
 
-    output_dir = make_output_dir(args.model)
+    output_dir = make_output_dir(args.model, run_tag=args.run_tag)
     with (output_dir / "config.json").open("w", encoding="utf-8") as fh:
         json.dump(asdict(config), fh, indent=2)
 

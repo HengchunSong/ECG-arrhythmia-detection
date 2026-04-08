@@ -363,6 +363,8 @@ class PersonalizedRRContextECGNet(nn.Module):
         context_beats: int = 3,
         history_beats: int = 8,
         rr_feature_dim: int = 5,
+        use_personal_rr: bool = True,
+        use_history_prototype: bool = True,
     ) -> None:
         super().__init__()
         if context_beats < 3 or context_beats % 2 == 0:
@@ -376,6 +378,8 @@ class PersonalizedRRContextECGNet(nn.Module):
         self.center_index = context_beats // 2
         self.history_beats = history_beats
         self.rr_feature_dim = rr_feature_dim
+        self.use_personal_rr = use_personal_rr
+        self.use_history_prototype = use_history_prototype
         self.encoder = MorphologyFeatureExtractor(in_channels=in_channels, dropout=dropout)
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.rr_encoder = nn.Sequential(
@@ -384,13 +388,16 @@ class PersonalizedRRContextECGNet(nn.Module):
             nn.Linear(32, 32),
             nn.SiLU(),
         )
-        self.personal_rr_encoder = nn.Sequential(
-            nn.Linear(rr_feature_dim * 4 + 1, 48),
-            nn.SiLU(),
-            nn.Dropout(dropout),
-            nn.Linear(48, 32),
-            nn.SiLU(),
-        )
+        if self.use_personal_rr:
+            self.personal_rr_encoder = nn.Sequential(
+                nn.Linear(rr_feature_dim * 4 + 1, 48),
+                nn.SiLU(),
+                nn.Dropout(dropout),
+                nn.Linear(48, 32),
+                nn.SiLU(),
+            )
+        else:
+            self.personal_rr_encoder = nn.Identity()
         self.context_gru = nn.GRU(
             input_size=self.encoder.out_channels + 32,
             hidden_size=96,
@@ -398,7 +405,11 @@ class PersonalizedRRContextECGNet(nn.Module):
             batch_first=True,
             bidirectional=True,
         )
-        fused_dim = self.encoder.out_channels * 4 + 96 * 2 + 32 + 32 + 1
+        fused_dim = self.encoder.out_channels * 2 + 96 * 2 + 32
+        if self.use_history_prototype:
+            fused_dim += self.encoder.out_channels * 2 + 1
+        if self.use_personal_rr:
+            fused_dim += 32
         self.head = nn.Sequential(
             nn.Linear(fused_dim, 192),
             nn.SiLU(),
@@ -453,51 +464,43 @@ class PersonalizedRRContextECGNet(nn.Module):
         center_rr = context_rr_embeddings[:, self.center_index, :]
         current_rr = rr_features[:, self.center_index, :]
         normalized_embedding = self.encode_beats(normalized_center)
-        history_embeddings = self.encode_beats(
-            history_beats.reshape(batch_size * history_steps, channels, length)
-        ).reshape(batch_size, history_steps, -1)
-        history_mask_expanded = history_mask.unsqueeze(-1)
-        history_embeddings = history_embeddings * history_mask_expanded
-
-        history_rr_embeddings = self.rr_encoder(
-            history_rr.reshape(batch_size * history_steps, -1)
-        ).reshape(batch_size, history_steps, -1)
-        history_rr_embeddings = history_rr_embeddings * history_mask_expanded
-
-        valid_counts = history_mask.sum(dim=1, keepdim=True)
-        valid_counts_clamped = valid_counts.clamp_min(1.0)
-
-        prototype = (history_embeddings * history_mask_expanded).sum(dim=1) / valid_counts_clamped
-
-        baseline_mean = rr_baseline[:, :self.rr_feature_dim]
-        baseline_std = rr_baseline[:, self.rr_feature_dim:self.rr_feature_dim * 2]
-        history_fraction = rr_baseline[:, -1:]
-        rr_delta = current_rr - baseline_mean
-        rr_z = rr_delta / (baseline_std + 1e-3)
-        personal_rr = self.personal_rr_encoder(
-            torch.cat([current_rr, baseline_mean, baseline_std, rr_z, history_fraction], dim=1)
-        )
-
-        prototype_delta = torch.abs(current_embedding - prototype)
-        prototype_similarity = nn.functional.cosine_similarity(
+        fused_parts = [
             current_embedding,
-            prototype,
-            dim=1,
-            eps=1e-6,
-        ).unsqueeze(1)
-        fused = torch.cat(
-            [
+            normalized_embedding,
+            center_context,
+            center_rr,
+        ]
+
+        if self.use_history_prototype:
+            history_embeddings = self.encode_beats(
+                history_beats.reshape(batch_size * history_steps, channels, length)
+            ).reshape(batch_size, history_steps, -1)
+            history_mask_expanded = history_mask.unsqueeze(-1)
+            history_embeddings = history_embeddings * history_mask_expanded
+            valid_counts = history_mask.sum(dim=1, keepdim=True)
+            valid_counts_clamped = valid_counts.clamp_min(1.0)
+            prototype = (history_embeddings * history_mask_expanded).sum(dim=1) / valid_counts_clamped
+            prototype_delta = torch.abs(current_embedding - prototype)
+            prototype_similarity = nn.functional.cosine_similarity(
                 current_embedding,
-                normalized_embedding,
-                center_context,
-                center_rr,
                 prototype,
-                prototype_delta,
-                personal_rr,
-                prototype_similarity,
-            ],
-            dim=1,
-        )
+                dim=1,
+                eps=1e-6,
+            ).unsqueeze(1)
+            fused_parts.extend([prototype, prototype_delta, prototype_similarity])
+
+        if self.use_personal_rr:
+            baseline_mean = rr_baseline[:, :self.rr_feature_dim]
+            baseline_std = rr_baseline[:, self.rr_feature_dim:self.rr_feature_dim * 2]
+            history_fraction = rr_baseline[:, -1:]
+            rr_delta = current_rr - baseline_mean
+            rr_z = rr_delta / (baseline_std + 1e-3)
+            personal_rr = self.personal_rr_encoder(
+                torch.cat([current_rr, baseline_mean, baseline_std, rr_z, history_fraction], dim=1)
+            )
+            fused_parts.append(personal_rr)
+
+        fused = torch.cat(fused_parts, dim=1)
         return self.head(fused)
 
 
@@ -566,6 +569,8 @@ def build_model(
     context_beats: int = 5,
     rr_feature_dim: int = 0,
     history_beats: int = 8,
+    use_personal_rr: bool = True,
+    use_history_prototype: bool = True,
 ) -> nn.Module:
     key = name.lower()
     if key == "baseline":
@@ -590,5 +595,7 @@ def build_model(
             context_beats=context_beats,
             history_beats=history_beats,
             rr_feature_dim=rr_feature_dim,
+            use_personal_rr=use_personal_rr,
+            use_history_prototype=use_history_prototype,
         )
     raise ValueError(f"Unknown model: {name}")
