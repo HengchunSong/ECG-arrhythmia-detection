@@ -450,7 +450,7 @@ ablation target = RR baseline only vs prototype only vs both together</pre>
 
     <section class="section">
       <h2>Result Timeline</h2>
-      <p class="lead">This is the short version of the path from easy-looking results to stricter and more believable ones.</p>
+      <p class="lead">This is the short version of the path from easy-looking results to stricter and more believable ones. The last column explains the actual reason each stage moved, not just whether it was "better" or "worse."</p>
       <table>
         <thead>
           <tr>
@@ -465,31 +465,31 @@ ablation target = RR baseline only vs prototype only vs both together</pre>
             <td><span class="stage">Random split quick check</span></td>
             <td>Easy early setting</td>
             <td><code>baseline</code> best F1 0.9922, <code>attention</code> best F1 0.9726</td>
-            <td>High numbers were easy to get, but this setup was too optimistic.</td>
+            <td>Train and test records were too friendly to each other, so the model could partly rely on patient-specific shortcuts instead of proving it could handle a truly new patient.</td>
           </tr>
           <tr>
             <td><span class="stage">First strict context model</span></td>
             <td>de Chazal, fold 0, 3 seeds</td>
             <td>mean P 0.7739 / R 0.8693 / F1 0.8147</td>
-            <td>Once the test became honest, the problem became much harder.</td>
+            <td>Once the test patients were really unseen, single-beat shape alone was not enough. The drop showed that this task depends on both morphology and local rhythm, not just memorizing familiar waveform styles.</td>
           </tr>
           <tr>
             <td><span class="stage">Beat-balanced context</span></td>
             <td>de Chazal, 5 folds x 3 seeds</td>
             <td>mean P 0.7901 / R 0.9008 / F1 0.8348</td>
-            <td>Better validation design made the result more stable and more believable.</td>
+            <td>Some validation folds used to contain many ventricular beats while others had very few, which made checkpoint choice noisy. Balancing folds by beat counts made validation feedback fairer, so the result became more stable for a real reason.</td>
           </tr>
           <tr>
             <td><span class="stage">RR-aware generic model</span></td>
             <td>de Chazal, 5 folds x 3 seeds</td>
             <td>mean P 0.7995 / R 0.9500 / F1 0.8629, best single F1 0.9420</td>
-            <td>Timing information helped more than just adding more shape modeling.</td>
+            <td>The model improved when it stopped looking only at shape and started looking directly at timing: whether a beat came early or late relative to nearby beats. That matches how ventricular beats are often recognized in practice.</td>
           </tr>
           <tr>
             <td><span class="stage">Personalized model</span></td>
             <td>de Chazal, 5 folds x 3 seeds</td>
             <td>mean P 0.8177 / R 0.9676 / F1 0.8817, best single F1 0.9517</td>
-            <td>Personal history still helps, but not for free because latency roughly doubles.</td>
+            <td>Giving the model a short past-only picture of what is normal for this record reduces confusion caused by patient-to-patient differences. It helps because the model is no longer judging every beat against a one-size-fits-all normal, but that extra personal calibration also costs extra compute.</td>
           </tr>
         </tbody>
       </table>
