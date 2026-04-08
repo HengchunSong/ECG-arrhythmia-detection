@@ -3,6 +3,8 @@
 An edge-oriented MIT-BIH ventricular arrhythmia prototype built to answer one question quickly:
 can we match or beat the poster baseline before investing in a paper-ready system?
 
+For a GitHub-friendly project summary, see [GITHUB_REPORT.md](GITHUB_REPORT.md).
+
 Current implementation includes:
 
 - automatic MIT-BIH download
