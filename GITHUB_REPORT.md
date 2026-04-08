@@ -5,7 +5,7 @@ This is the short public-facing version of the project report.
 It is written for GitHub, so it only keeps the parts that are easy for other people to read in the repo:
 - what the project is doing
 - what model we ended up with
-- what tricks we used
+- what techniques we used
 - what the main results were
 - what still needs work
 
@@ -55,7 +55,7 @@ ECG record
           +--> ventricular beat vs normal beat
 ```
 
-## Main Tricks We Used
+## Main Techniques We Used
 
 These are the main ideas that actually mattered:
 
@@ -163,4 +163,3 @@ We also split the personalized branch into its two main parts:
 - [src/heart/data.py](src/heart/data.py)
 - [src/heart/models.py](src/heart/models.py)
 - [src/heart/train.py](src/heart/train.py)
-
