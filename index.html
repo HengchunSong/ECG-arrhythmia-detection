@@ -362,7 +362,7 @@
     <section class="section">
       <h2>What This Project Is Really About</h2>
       <p class="lead">
-        The first high scores were not the interesting part. The real work was making the testing setup honest,
+        The first high scores were not the interesting part. The real work was making the testing setup stricter and more realistic,
         then seeing which ideas still helped after that.
       </p>
       <div class="grid-2">
@@ -390,7 +390,7 @@
     <section class="section">
       <h2>Current Architecture</h2>
       <p class="lead">
-        The best personalized version keeps a strong generic detector and adds a small past-only calibration branch.
+        The best-performing personalized version so far keeps a strong generic detector and adds a small past-only calibration branch.
       </p>
       <pre class="ascii">ECG record
   |
@@ -531,11 +531,11 @@ ablation target = RR baseline only vs prototype only vs both together</pre>
     </section>
 
     <section class="section">
-      <h2>What We Can Honestly Say Right Now</h2>
+      <h2>What We Can Reasonably Say Right Now</h2>
       <div class="grid-3">
         <article class="panel">
           <h3>What looks solid</h3>
-          <p>Random split was too optimistic. The de Chazal inter-patient setup is the right main benchmark, and the generic RR-aware model is currently the strongest honest generic direction.</p>
+          <p>Random split was too optimistic. The de Chazal inter-patient setup is the right main benchmark, and the generic RR-aware model is currently the best-performing generic direction so far under the stricter setting.</p>
         </article>
         <article class="panel">
           <h3>What still looks promising</h3>

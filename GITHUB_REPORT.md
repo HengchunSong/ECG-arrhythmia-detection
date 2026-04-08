@@ -18,11 +18,11 @@ The goal is simple:
 use ECG beats from the MIT-BIH arrhythmia dataset to detect ventricular beats with a model that is still realistic for edge or IoT deployment.
 
 The important lesson from this project is that getting a high score was not the hard part.
-The hard part was getting a score that still looks good after the testing setup becomes honest.
+The hard part was getting a score that still looks good after the testing setup becomes stricter and more realistic.
 
 ## Current Model, In Plain Language
 
-The strongest version right now is a two-layer idea:
+The best-performing version so far is a two-layer idea:
 
 1. `generic base model`
    A model that works on unseen patients.
@@ -88,7 +88,7 @@ These are the main ideas that actually mattered:
 |---|---|---|---|
 | Random split quick check | Easy early setting | `baseline` best F1 `0.9922`, `attention` best F1 `0.9726` | High numbers were easy to get, but this setup was too optimistic. |
 | First strict context model | de Chazal, fold 0, 3 seeds | mean `P 0.7739 / R 0.8693 / F1 0.8147` | Switching to unseen-patient testing made the problem much harder. |
-| Beat-balanced context | de Chazal, 5 folds x 3 seeds | mean `P 0.7901 / R 0.9008 / F1 0.8348` | Better validation design made the result more honest and more stable. |
+| Beat-balanced context | de Chazal, 5 folds x 3 seeds | mean `P 0.7901 / R 0.9008 / F1 0.8348` | Better validation design made the result more realistic and more stable. |
 | RR-aware generic model | de Chazal, 5 folds x 3 seeds | mean `P 0.7995 / R 0.9500 / F1 0.8629`, best single `F1 0.9420` | Explicit rhythm timing helped more than just adding more shape modeling. |
 | Personalized model | de Chazal, 5 folds x 3 seeds | mean `P 0.8177 / R 0.9676 / F1 0.8817`, best single `F1 0.9517` | Personal history still helps, but the gain is smaller than it first looked in a single-seed scan. |
 
@@ -139,11 +139,11 @@ We also split the personalized branch into its two main parts:
 - The `RR baseline` still helps, but the extra boost is smaller.
 - Most of the added latency comes from the history morphology side, not from the RR baseline alone.
 
-## What We Can Honestly Claim Right Now
+## What We Can Reasonably Claim Right Now
 
 - Random split numbers were too optimistic and should not be treated as the main result.
 - The stricter `de-chazal-interpatient` setting is the right main benchmark for a paper.
-- `multiscale morphology + short-range rhythm context + RR-aware timing` is the strongest generic direction so far.
+- `multiscale morphology + short-range rhythm context + RR-aware timing` is the best-performing generic direction so far.
 - `personalized calibration` helps, but it should be reported as a separate setting because it uses personal history.
 - Accuracy is no longer the only story; latency matters a lot for this project.
 

@@ -22,7 +22,7 @@ and supports:
 - causal within-record history baselines for personalized experiments
 - multi-seed aggregation through `sweep.py`
 
-## Honest summary
+## Stricter summary
 
 The most important new result is this:
 
@@ -249,7 +249,7 @@ Fold-by-fold F1 mean:
 - fold 3: `0.8720`
 - fold 4: `0.9240`
 
-This full multi-seed view is more honest than the earlier seed 42 scan:
+This full multi-seed view is more realistic than the earlier seed 42 scan:
 
 - `rr-context` is still stronger than `context` on the strict generic mean
 - but the gain is not as clean as the seed 42 scan first suggested
