@@ -5,6 +5,9 @@ can we match or beat the poster baseline before investing in a paper-ready syste
 
 For a GitHub-friendly project summary, see [GITHUB_REPORT.md](GITHUB_REPORT.md).
 
+Pretrained checkpoints and a processed MIT-BIH cache are published in the GitHub Release:
+[v0.1.0-weights](https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/tag/v0.1.0-weights).
+
 Current implementation includes:
 
 - automatic MIT-BIH download
@@ -25,6 +28,36 @@ Current implementation includes:
 ```powershell
 pip install -r requirements.txt
 ```
+
+## Run A Released Checkpoint
+
+The release includes:
+
+- `rr-context-best.pt`: best generic checkpoint so far
+- `rr-context-metrics.json`: threshold and saved test metrics
+- `personalized-rr-context-best.pt`: best personalized checkpoint so far
+- `personalized-rr-context-metrics.json`: threshold and saved test metrics
+- `mitdb_binary_v2_w256_leads0_n48.npz`: processed MIT-BIH cache for quick evaluation
+
+On Raspberry Pi or a local CPU machine, place the processed cache under `data/processed/`:
+
+```powershell
+mkdir data\processed
+```
+
+Then run the generic RR-aware checkpoint:
+
+```powershell
+python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 128
+```
+
+Run the personalized checkpoint:
+
+```powershell
+python scripts/evaluate_pretrained.py --model personalized-rr-context --weights personalized-rr-context-best.pt --metrics-json personalized-rr-context-metrics.json --data-root data --batch-size 64
+```
+
+If the processed cache is not present, the script will rebuild the dataset from PhysioNet through `wfdb`, which takes longer but keeps the raw data source transparent.
 
 ## Quick smoke test
 
