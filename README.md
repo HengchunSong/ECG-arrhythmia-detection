@@ -3,14 +3,22 @@
 An edge-oriented MIT-BIH ventricular arrhythmia prototype built to answer one question quickly:
 can we match or beat the poster baseline before investing in a paper-ready system?
 
-For a GitHub-friendly project summary, see [GITHUB_REPORT.md](GITHUB_REPORT.md).
+There are two ways to use this repository:
 
-Pretrained checkpoints and a processed MIT-BIH cache are published in the GitHub Release:
-[v0.1.0-weights](https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/tag/v0.1.0-weights).
+- **Part 1: Run released weights on Raspberry Pi 3/4/5.** Use this if you want to download the pretrained model and processed data, then immediately evaluate F1 and CPU inference speed.
+- **Part 2: Train from source.** Use this if you want to rebuild the dataset, train models, run sweeps, and reproduce experiments.
+
+Project summaries:
+
+- [GitHub-friendly summary](GITHUB_REPORT.md)
+- [Full experiment report](full_experiment_report.html)
+- [GitHub Pages report](https://hengchunsong.github.io/ECG-arrhythmia-detection/)
+
+The full experiment report preserves the detailed result timeline. Some old artifact links inside that report point to local experiment folders, while the released runnable weights and processed data are hosted under `v0.1.0-weights`.
 
 Current implementation includes:
 
-- automatic MIT-BIH download
+- automatic MIT-BIH download for source training
 - patient-wise record splits
 - R-peak aligned beat windows
 - binary labels: `normal=0`, `ventricular=1`
@@ -23,23 +31,32 @@ Current implementation includes:
 - TorchScript export and a lightweight dynamic quantization checkpoint
 - multi-seed sweep support for more stable comparisons
 
-## Install
+## Part 1: Run Released Weights On Raspberry Pi
 
-```powershell
+Use this path when you do not want to retrain. It downloads:
+
+- pretrained `rr-context` weights
+- the matching threshold/metrics file
+- a processed MIT-BIH cache with beat windows, RR features, and RR-normalized views
+
+The release is here:
+[v0.1.0-weights](https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/tag/v0.1.0-weights).
+
+### 1. Clone And Install
+
+On Raspberry Pi 3/4/5:
+
+```bash
+git clone https://github.com/HengchunSong/ECG-arrhythmia-detection.git
+cd ECG-arrhythmia-detection
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Run A Released Checkpoint
+### 2. Download Model And Processed Data
 
-The release includes:
-
-- `rr-context-best.pt`: best generic checkpoint so far
-- `rr-context-metrics.json`: threshold and saved test metrics
-- `personalized-rr-context-best.pt`: best personalized checkpoint so far
-- `personalized-rr-context-metrics.json`: threshold and saved test metrics
-- `mitdb_binary_v2_w256_leads0_n48.npz`: processed MIT-BIH cache for quick evaluation
-
-On Raspberry Pi, run this from the repository root to download the generic model and processed data in one shot:
+Run this from the repository root:
 
 ```bash
 mkdir -p data/processed
@@ -48,14 +65,54 @@ curl -L -o rr-context-metrics.json https://github.com/HengchunSong/ECG-arrhythmi
 curl -L -o data/processed/mitdb_binary_v2_w256_leads0_n48.npz https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/mitdb_binary_v2_w256_leads0_n48.npz
 ```
 
-Or download the personalized model as well:
+### 3. Run Inference And Measure Speed
+
+For Raspberry Pi 4/5:
+
+```bash
+python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 128 --benchmark-runs 300
+```
+
+For Raspberry Pi 3, use a smaller batch:
+
+```bash
+python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 32 --benchmark-runs 100
+```
+
+The output includes both accuracy metrics and speed:
+
+```json
+{
+  "precision": 0.9165,
+  "recall": 0.9689,
+  "f1": 0.9420,
+  "latency_ms_per_window_cpu": 11.21,
+  "windows_per_second_cpu": 89.18
+}
+```
+
+`latency_ms_per_window_cpu` means how many milliseconds one ECG window takes for one CPU inference.
+
+### Optional Personalized Model
+
+Download the personalized checkpoint:
 
 ```bash
 curl -L -o personalized-rr-context-best.pt https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/personalized-rr-context-best.pt
 curl -L -o personalized-rr-context-metrics.json https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/personalized-rr-context-metrics.json
 ```
 
-On Windows PowerShell, use:
+Run it:
+
+```bash
+python scripts/evaluate_pretrained.py --model personalized-rr-context --weights personalized-rr-context-best.pt --metrics-json personalized-rr-context-metrics.json --data-root data --batch-size 64 --benchmark-runs 300
+```
+
+This model uses a causal history branch. It usually improves the best single-run result, but it is slower than `rr-context`.
+
+### Windows PowerShell Download
+
+If you are testing on Windows:
 
 ```powershell
 New-Item -ItemType Directory -Force data\processed
@@ -64,19 +121,15 @@ Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/
 Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/mitdb_binary_v2_w256_leads0_n48.npz -OutFile data\processed\mitdb_binary_v2_w256_leads0_n48.npz
 ```
 
-Then run the generic RR-aware checkpoint:
+## Part 2: Train From Source
+
+Use this path when you want to rebuild the dataset and train models yourself. If the processed cache is not present, the training script downloads MIT-BIH through `wfdb` and builds the cache.
+
+### Install
 
 ```powershell
-python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 128 --benchmark-runs 300
+pip install -r requirements.txt
 ```
-
-Run the personalized checkpoint:
-
-```powershell
-python scripts/evaluate_pretrained.py --model personalized-rr-context --weights personalized-rr-context-best.pt --metrics-json personalized-rr-context-metrics.json --data-root data --batch-size 64 --benchmark-runs 300
-```
-
-If the processed cache is not present, the script will rebuild the dataset from PhysioNet through `wfdb`, which takes longer but keeps the raw data source transparent.
 
 ## Quick smoke test
 
