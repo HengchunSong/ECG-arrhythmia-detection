@@ -67,13 +67,13 @@ Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/
 Then run the generic RR-aware checkpoint:
 
 ```powershell
-python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 128
+python scripts/evaluate_pretrained.py --model rr-context --weights rr-context-best.pt --metrics-json rr-context-metrics.json --data-root data --batch-size 128 --benchmark-runs 300
 ```
 
 Run the personalized checkpoint:
 
 ```powershell
-python scripts/evaluate_pretrained.py --model personalized-rr-context --weights personalized-rr-context-best.pt --metrics-json personalized-rr-context-metrics.json --data-root data --batch-size 64
+python scripts/evaluate_pretrained.py --model personalized-rr-context --weights personalized-rr-context-best.pt --metrics-json personalized-rr-context-metrics.json --data-root data --batch-size 64 --benchmark-runs 300
 ```
 
 If the processed cache is not present, the script will rebuild the dataset from PhysioNet through `wfdb`, which takes longer but keeps the raw data source transparent.

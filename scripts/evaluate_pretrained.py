@@ -19,6 +19,7 @@ from heart.train import (
     build_dataloaders,
     evaluate_with_threshold,
     get_device,
+    benchmark_latency_ms,
     resolve_context_radius,
     resolve_history_beats,
     resolve_personalization_flags,
@@ -50,6 +51,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--disable-personal-rr-baseline", action="store_true")
     parser.add_argument("--disable-history-prototype", action="store_true")
     parser.add_argument("--force-rebuild", action="store_true", help="Ignore processed cache and rebuild from PhysioNet raw data.")
+    parser.add_argument("--benchmark-runs", type=int, default=300, help="Number of single-window CPU latency runs.")
     return parser
 
 
@@ -101,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     print(split_summary("val", val_split))
     print(split_summary("test", test_split))
 
-    _, _, test_loader, _, _ = build_dataloaders(
+    _, _, test_loader, _, example_input = build_dataloaders(
         train_split=train_split,
         val_split=val_split,
         test_split=test_split,
@@ -129,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
     model.eval()
 
     metrics = evaluate_with_threshold(model, test_loader, device=device, threshold=threshold)
+    if args.benchmark_runs > 0:
+        latency_ms = benchmark_latency_ms(model, example_input, runs=args.benchmark_runs)
+        metrics["latency_ms_per_window_cpu"] = latency_ms
+        metrics["windows_per_second_cpu"] = 1000.0 / latency_ms if latency_ms > 0 else None
+        metrics["benchmark_runs"] = int(args.benchmark_runs)
     print(json.dumps(metrics, indent=2))
     return 0
 
