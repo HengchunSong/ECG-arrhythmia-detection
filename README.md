@@ -39,10 +39,29 @@ The release includes:
 - `personalized-rr-context-metrics.json`: threshold and saved test metrics
 - `mitdb_binary_v2_w256_leads0_n48.npz`: processed MIT-BIH cache for quick evaluation
 
-On Raspberry Pi or a local CPU machine, place the processed cache under `data/processed/`:
+On Raspberry Pi, run this from the repository root to download the generic model and processed data in one shot:
+
+```bash
+mkdir -p data/processed
+curl -L -o rr-context-best.pt https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/rr-context-best.pt
+curl -L -o rr-context-metrics.json https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/rr-context-metrics.json
+curl -L -o data/processed/mitdb_binary_v2_w256_leads0_n48.npz https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/mitdb_binary_v2_w256_leads0_n48.npz
+```
+
+Or download the personalized model as well:
+
+```bash
+curl -L -o personalized-rr-context-best.pt https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/personalized-rr-context-best.pt
+curl -L -o personalized-rr-context-metrics.json https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/personalized-rr-context-metrics.json
+```
+
+On Windows PowerShell, use:
 
 ```powershell
-mkdir data\processed
+New-Item -ItemType Directory -Force data\processed
+Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/rr-context-best.pt -OutFile rr-context-best.pt
+Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/rr-context-metrics.json -OutFile rr-context-metrics.json
+Invoke-WebRequest -Uri https://github.com/HengchunSong/ECG-arrhythmia-detection/releases/download/v0.1.0-weights/mitdb_binary_v2_w256_leads0_n48.npz -OutFile data\processed\mitdb_binary_v2_w256_leads0_n48.npz
 ```
 
 Then run the generic RR-aware checkpoint:
